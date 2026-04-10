@@ -18,7 +18,7 @@ from database import (
 )
 from services.nanobanana import generate_image, KieError
 from keyboards.inline import main_menu_kb, paywall_kb
-from config import GENERATION_COST
+from config import GENERATION_COST, ADMIN_ID, DISCOUNTED_COST, DISCOUNTED_USER_IDS
 
 router = Router()
 
@@ -47,16 +47,22 @@ async def got_photo_with_caption(message: Message, bot: Bot) -> None:
     photo_file_id = message.photo[-1].file_id
     prompt = message.caption
 
+    is_admin = (user.id == ADMIN_ID)
+    is_discounted = (user.id in DISCOUNTED_USER_IDS)
+    effective_cost = DISCOUNTED_COST if is_discounted else GENERATION_COST
     is_free = 0
-    cost = float(GENERATION_COST)
+    cost = float(effective_cost)
 
-    if db_user["free_generations"] > 0:
+    if is_admin:
         is_free = 1
         cost = 0.0
-    elif db_user["balance"] < GENERATION_COST:
+    elif db_user["free_generations"] > 0:
+        is_free = 1
+        cost = 0.0
+    elif db_user["balance"] < effective_cost:
         await message.answer(
             f"⚠️ Недостаточно средств.\n\n"
-            f"Стоимость генерации: <b>{GENERATION_COST}₽</b>\n"
+            f"Стоимость генерации: <b>{effective_cost}₽</b>\n"
             f"Ваш баланс: <b>{db_user['balance']:.0f}₽</b>\n\n"
             "Пополните баланс, чтобы продолжить.",
             reply_markup=paywall_kb(),
@@ -74,9 +80,9 @@ async def got_photo_with_caption(message: Message, bot: Bot) -> None:
         is_free=is_free,
     )
 
-    if is_free:
+    if is_free and not is_admin:
         await deduct_free_generation(user.id)
-    else:
+    elif not is_free:
         await deduct_balance(user.id, cost)
 
     await increment_total_generations(user.id)

@@ -9,6 +9,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance"),
             InlineKeyboardButton(text="➕ Пополнить", callback_data="topup"),
         ],
+        [InlineKeyboardButton(text="❓ Как писать запрос", callback_data="how_to")],
     ])
 
 

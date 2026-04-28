@@ -17,4 +17,9 @@ MIN_TOPUP: int = int(os.getenv("MIN_TOPUP", "100"))
 DB_PATH: str = os.getenv("DB_PATH", "bot.db")
 FREE_GENERATIONS: int = int(os.getenv("FREE_GENERATIONS", "1"))
 
-TOPUP_OPTIONS = [100, 200, 500, 1000]
+TOPUP_OPTIONS = [100, 500, 1000, 2000]
+
+YOOKASSA_SHOP_ID: str = os.environ["YOOKASSA_SHOP_ID"]
+YOOKASSA_SECRET_KEY: str = os.environ["YOOKASSA_SECRET_KEY"]
+WEBAPP_URL: str = os.getenv("WEBAPP_URL", "https://imagetransformation.ru")
+WEB_SERVER_PORT: int = int(os.getenv("WEB_SERVER_PORT", "8080"))

@@ -25,3 +25,6 @@ build/
 .DS_Store
 Thumbs.db
 .txt
+
+# SSL certificates (получаются на сервере через certbot)
+certbot/

@@ -28,12 +28,24 @@ async def init_db() -> None:
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
         """)
-        # Миграция: добавляем username если таблица уже существовала без него
         try:
             await db.execute("ALTER TABLE payments ADD COLUMN username TEXT")
             await db.commit()
         except Exception:
-            pass  # столбец уже есть
+            pass
+        try:
+            await db.execute("ALTER TABLE payments ADD COLUMN yookassa_payment_id TEXT")
+            await db.commit()
+        except Exception:
+            pass
+        try:
+            await db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_yookassa_id "
+                "ON payments (yookassa_payment_id) WHERE yookassa_payment_id IS NOT NULL"
+            )
+            await db.commit()
+        except Exception:
+            pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS generations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,15 +135,17 @@ async def add_balance(user_id: int, amount: float) -> None:
 async def save_payment(
     user_id: int,
     amount: float,
-    telegram_charge_id: str,
-    provider_charge_id: str,
+    telegram_charge_id: str | None = None,
+    provider_charge_id: str | None = None,
     username: str | None = None,
+    yookassa_payment_id: str | None = None,
 ) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            """INSERT INTO payments (user_id, username, amount, telegram_charge_id, provider_charge_id)
-               VALUES (?, ?, ?, ?, ?)""",
-            (user_id, username, amount, telegram_charge_id, provider_charge_id),
+            """INSERT INTO payments
+               (user_id, username, amount, telegram_charge_id, provider_charge_id, yookassa_payment_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, username, amount, telegram_charge_id, provider_charge_id, yookassa_payment_id),
         )
         await db.commit()
 

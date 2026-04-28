@@ -1,5 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import TOPUP_OPTIONS
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from config import TOPUP_OPTIONS, WEBAPP_URL
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
@@ -19,6 +19,12 @@ def topup_amounts_kb() -> InlineKeyboardMarkup:
         for amount in TOPUP_OPTIONS
     ]
     rows = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
+    rows.append([
+        InlineKeyboardButton(
+            text="🌐 Оплатить через сайт",
+            web_app=WebAppInfo(url=f"{WEBAPP_URL}/pay"),
+        )
+    ])
     rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

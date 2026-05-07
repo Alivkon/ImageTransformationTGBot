@@ -1,12 +1,25 @@
 services:
+  postgre_imagetransformer:
+    image: postgres:16-alpine
+    container_name: postgre_imagetransformer
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: imagetransformer
+      POSTGRES_USER: imagetransformer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - n8n_default
+
   bot:
     build: .
     restart: unless-stopped
     env_file: .env
-    volumes:
-      - ./data:/app/data
     expose:
       - "8080"
+    depends_on:
+      - postgre_imagetransformer
     networks:
       - n8n_default
     labels:
@@ -16,6 +29,9 @@ services:
       - "traefik.http.routers.imagetransformation.tls=true"
       - "traefik.http.routers.imagetransformation.tls.certresolver=mytlschallenge"
       - "traefik.http.services.imagetransformation.loadbalancer.server.port=8080"
+
+volumes:
+  postgres_data:
 
 networks:
   n8n_default:

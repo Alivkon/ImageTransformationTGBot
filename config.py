@@ -14,7 +14,7 @@ DISCOUNTED_USER_IDS: set[int] = {
     int(x) for x in os.getenv("DISCOUNTED_USER_IDS", "").split(",") if x.strip()
 }
 MIN_TOPUP: int = int(os.getenv("MIN_TOPUP", "100"))
-DB_PATH: str = os.getenv("DB_PATH", "bot.db")
+DATABASE_URL: str = os.environ["DATABASE_URL"]
 FREE_GENERATIONS: int = int(os.getenv("FREE_GENERATIONS", "1"))
 
 TOPUP_OPTIONS = [100, 500, 1000, 2000]

@@ -27,6 +27,6 @@ async def cmd_start(message: Message) -> None:
         f"{free_text}\n"
         f"💰 Баланс: <b>{balance:.0f}₽</b>\n\n"
         "Нажмите <b>«Сгенерировать»</b>, чтобы начать.",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(user.id),
         parse_mode="HTML",
     )

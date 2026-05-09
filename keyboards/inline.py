@@ -2,15 +2,22 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from config import TOPUP_OPTIONS, WEBAPP_URL
 
 
-def main_menu_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+def main_menu_kb(user_id: int = 0) -> InlineKeyboardMarkup:
+    from config import ADMIN_ID, WEBAPP_URL
+    rows = [
         [InlineKeyboardButton(text="🎨 Сгенерировать", callback_data="generate")],
         [
             InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance"),
             InlineKeyboardButton(text="➕ Пополнить", callback_data="topup"),
         ],
         [InlineKeyboardButton(text="❓ Как писать запрос", callback_data="how_to")],
-    ])
+    ]
+    if user_id == ADMIN_ID:
+        rows.append([InlineKeyboardButton(
+            text="⚙️ Панель администратора",
+            web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin"),
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def topup_amounts_kb() -> InlineKeyboardMarkup:

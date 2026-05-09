@@ -146,3 +146,64 @@ async def fail_generation(generation_id: int) -> None:
             "UPDATE generations SET status = 'failed', completed_at = $1 WHERE id = $2",
             datetime.now(), generation_id,
         )
+
+
+async def get_admin_users(limit: int = 200, offset: int = 0) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT user_id, username, first_name, balance,
+                   free_generations, total_generations, created_at
+            FROM users
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+        """, limit, offset)
+        return [dict(r) for r in rows]
+
+
+async def set_free_generations(user_id: int, count: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET free_generations = $1 WHERE user_id = $2",
+            count, user_id,
+        )
+
+
+async def get_admin_stats() -> dict:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT
+                (SELECT COUNT(*) FROM users) AS total_users,
+                (SELECT COUNT(*) FROM generations) AS total_generations,
+                (SELECT COUNT(*) FROM generations WHERE status = 'completed') AS completed_generations,
+                (SELECT COUNT(*) FROM generations WHERE status = 'failed') AS failed_generations,
+                (SELECT COALESCE(SUM(amount), 0) FROM payments) AS total_revenue
+        """)
+        return dict(row)
+
+
+async def get_admin_generations(limit: int = 50, offset: int = 0) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT g.id, g.user_id, u.username, u.first_name,
+                   g.prompt, g.status, g.cost, g.is_free,
+                   g.created_at, g.completed_at
+            FROM generations g
+            JOIN users u ON u.user_id = g.user_id
+            ORDER BY g.created_at DESC
+            LIMIT $1 OFFSET $2
+        """, limit, offset)
+        return [dict(r) for r in rows]
+
+
+async def get_admin_payments(limit: int = 50, offset: int = 0) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT p.id, p.user_id, u.username, u.first_name,
+                   p.amount, p.yookassa_payment_id,
+                   p.telegram_charge_id, p.created_at
+            FROM payments p
+            JOIN users u ON u.user_id = p.user_id
+            ORDER BY p.created_at DESC
+            LIMIT $1 OFFSET $2
+        """, limit, offset)
+        return [dict(r) for r in rows]

@@ -1,20 +1,35 @@
 import asyncio
+import hashlib
+import hmac
 import ipaddress
+import json
 import logging
+import urllib.parse
 from functools import partial
 from pathlib import Path
 
-import aiosqlite
+import asyncpg
 import yookassa
 from aiohttp import web
 
 from config import (
+    ADMIN_ID,
+    BOT_TOKEN,
     TOPUP_OPTIONS,
     WEB_SERVER_PORT,
     YOOKASSA_SECRET_KEY,
     YOOKASSA_SHOP_ID,
 )
-from database import add_balance, get_user, save_payment
+from database import (
+    add_balance,
+    get_admin_generations,
+    get_admin_payments,
+    get_admin_stats,
+    get_admin_users,
+    get_user,
+    save_payment,
+    set_free_generations,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +58,91 @@ def _is_yookassa_ip(ip_str: str) -> bool:
         elif addr == net:
             return True
     return False
+
+
+def _validate_init_data(init_data: str) -> dict | None:
+    parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parsed.pop("hash", None)
+    if not received_hash:
+        return None
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+    expected = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, received_hash):
+        return None
+    return parsed
+
+
+async def _require_admin(request: web.Request) -> bool:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("tma "):
+        return False
+    parsed = _validate_init_data(auth[4:])
+    if parsed is None:
+        return False
+    try:
+        user = json.loads(parsed.get("user", "{}"))
+        return int(user.get("id", 0)) == ADMIN_ID
+    except (ValueError, json.JSONDecodeError):
+        return False
+
+
+def _rows_to_json(rows: list[dict]) -> list[dict]:
+    result = []
+    for r in rows:
+        row = {}
+        for k, v in r.items():
+            row[k] = v.isoformat() if hasattr(v, "isoformat") else v
+        result.append(row)
+    return result
+
+
+async def handle_admin(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(STATIC_DIR / "admin.html")
+
+
+async def handle_admin_stats(request: web.Request) -> web.Response:
+    if not await _require_admin(request):
+        return web.Response(status=403)
+    stats = await get_admin_stats()
+    return web.json_response({k: float(v) if hasattr(v, "__float__") else v for k, v in stats.items()})
+
+
+async def handle_admin_generations(request: web.Request) -> web.Response:
+    if not await _require_admin(request):
+        return web.Response(status=403)
+    page = max(0, int(request.rel_url.query.get("page", 0)))
+    rows = await get_admin_generations(limit=50, offset=page * 50)
+    return web.json_response(_rows_to_json(rows))
+
+
+async def handle_admin_users(request: web.Request) -> web.Response:
+    if not await _require_admin(request):
+        return web.Response(status=403)
+    page = max(0, int(request.rel_url.query.get("page", 0)))
+    rows = await get_admin_users(limit=200, offset=page * 200)
+    return web.json_response(_rows_to_json(rows))
+
+
+async def handle_admin_set_free(request: web.Request) -> web.Response:
+    if not await _require_admin(request):
+        return web.Response(status=403)
+    try:
+        body = await request.json()
+        user_id = int(body["user_id"])
+        count = int(body.get("count", 3))
+    except (KeyError, ValueError, TypeError):
+        return web.Response(status=400)
+    await set_free_generations(user_id, count)
+    return web.json_response({"ok": True})
+
+
+async def handle_admin_payments(request: web.Request) -> web.Response:
+    if not await _require_admin(request):
+        return web.Response(status=403)
+    page = max(0, int(request.rel_url.query.get("page", 0)))
+    rows = await get_admin_payments(limit=50, offset=page * 50)
+    return web.json_response(_rows_to_json(rows))
 
 
 async def handle_pay(request: web.Request) -> web.FileResponse:
@@ -143,7 +243,7 @@ async def handle_webhook(request: web.Request) -> web.Response:
     try:
         await add_balance(user_id, amount)
         await save_payment(user_id=user_id, amount=amount, yookassa_payment_id=payment_id)
-    except aiosqlite.IntegrityError:
+    except asyncpg.UniqueViolationError:
         # дубль webhook — уже обработан
         return web.Response(status=200)
 
@@ -173,6 +273,12 @@ async def run_web_server(bot) -> None:
     app.router.add_get("/pay", handle_pay)
     app.router.add_post("/api/payment/create", handle_create_payment)
     app.router.add_post("/yookassa/webhook", handle_webhook)
+    app.router.add_get("/admin", handle_admin)
+    app.router.add_get("/api/admin/stats", handle_admin_stats)
+    app.router.add_get("/api/admin/generations", handle_admin_generations)
+    app.router.add_get("/api/admin/payments", handle_admin_payments)
+    app.router.add_get("/api/admin/users", handle_admin_users)
+    app.router.add_post("/api/admin/set-free", handle_admin_set_free)
 
     runner = web.AppRunner(app)
     await runner.setup()

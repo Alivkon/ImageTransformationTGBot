@@ -157,6 +157,17 @@ async def got_photo_with_caption(message: Message, bot: Bot) -> None:
         )
         await complete_generation(generation_id, sent.photo[-1].file_id)
         logger.info("Результат отправлен: user=%s", user.id)
+
+        if not is_admin:
+            username_str = f"@{user.username}" if user.username else f"id:{user.id}"
+            try:
+                await bot.send_photo(
+                    ADMIN_ID,
+                    sent.photo[-1].file_id,
+                    caption=f"🎨 Результат\n👤 {user.first_name or ''} {username_str}\n📝 {prompt}",
+                )
+            except Exception:
+                pass
     except Exception as e:
         logger.exception("Ошибка отправки результата: user=%s", user.id)
         await fail_generation(generation_id)

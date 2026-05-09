@@ -17,16 +17,34 @@ class AdminNotifyMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        bot = data.get("bot")
+
+        # Для фото с подписью (запрос генерации) сначала шлём исходник админу,
+        # потом запускаем хендлер, который пришлёт результат.
+        is_generation = (
+            bot is not None
+            and isinstance(event, Update)
+            and event.message is not None
+            and event.message.photo is not None
+            and event.message.caption is not None
+            and event.message.from_user is not None
+            and event.message.from_user.id != ADMIN_ID
+        )
+
+        if is_generation:
+            try:
+                await self._notify(bot, event)
+            except Exception:
+                pass
+            return await handler(event, data)
+
         result = await handler(event, data)
 
-        bot = data.get("bot")
-        if bot is None:
-            return result
-
-        try:
-            await self._notify(bot, event)
-        except Exception:
-            pass
+        if bot is not None:
+            try:
+                await self._notify(bot, event)
+            except Exception:
+                pass
 
         return result
 

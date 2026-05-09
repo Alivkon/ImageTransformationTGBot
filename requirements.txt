@@ -3,3 +3,4 @@ asyncpg
 aiohttp==3.10.10
 python-dotenv==1.0.1
 yookassa==3.10.1
+aiosqlite

@@ -3,6 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: postgre_imagetransformer
     restart: unless-stopped
+    env_file: .env
     environment:
       POSTGRES_DB: imagetransformer
       POSTGRES_USER: imagetransformer
@@ -14,6 +15,8 @@ services:
 
   bot:
     build: .
+    image: imagetransformationtgbot
+    container_name: imagetransformationtgbot
     restart: unless-stopped
     env_file: .env
     expose:

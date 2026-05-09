@@ -18,7 +18,7 @@ async def cmd_start(message: Message) -> None:
     free = db_user["free_generations"]
     balance = db_user["balance"]
 
-    free_text = f"У вас есть <b>1 бесплатная генерация</b>!" if free > 0 else ""
+    free_text = f"У вас есть <b>{free} бесплатн{'ая генерация' if free == 1 else 'ых генерации' if 2 <= free <= 4 else 'ых генераций'}</b>!" if free > 0 else ""
 
     await message.answer(
         f"Привет, {user.first_name}! 👋\n\n"

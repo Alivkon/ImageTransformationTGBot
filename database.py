@@ -15,7 +15,7 @@ async def init_db() -> None:
                 username TEXT,
                 first_name TEXT,
                 balance DOUBLE PRECISION DEFAULT 0.0,
-                free_generations INTEGER DEFAULT 1,
+                free_generations INTEGER DEFAULT 3,
                 total_generations INTEGER DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )

@@ -15,7 +15,7 @@ DISCOUNTED_USER_IDS: set[int] = {
 }
 MIN_TOPUP: int = int(os.getenv("MIN_TOPUP", "100"))
 DATABASE_URL: str = os.environ["DATABASE_URL"]
-FREE_GENERATIONS: int = int(os.getenv("FREE_GENERATIONS", "1"))
+FREE_GENERATIONS: int = int(os.getenv("FREE_GENERATIONS", "3"))
 
 TOPUP_OPTIONS = [100, 500, 1000, 2000]
 

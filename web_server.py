@@ -145,9 +145,9 @@ async def handle_admin_payments(request: web.Request) -> web.Response:
     return web.json_response(_rows_to_json(rows))
 
 
-async def handle_pay(request: web.Request) -> web.FileResponse:
+async def handle_pay_tg(request: web.Request) -> web.FileResponse:
     return web.FileResponse(
-        STATIC_DIR / "pay.html",
+        STATIC_DIR / "pay_tg.html",
         headers={"ngrok-skip-browser-warning": "true"},
     )
 
@@ -270,7 +270,7 @@ async def run_web_server(bot) -> None:
 
     app = web.Application()
     app["bot"] = bot
-    app.router.add_get("/pay", handle_pay)
+    app.router.add_get("/pay_tg", handle_pay_tg)
     app.router.add_post("/api/payment/create", handle_create_payment)
     app.router.add_post("/yookassa/webhook", handle_webhook)
     app.router.add_get("/admin", handle_admin)

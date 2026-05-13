@@ -38,6 +38,14 @@ async def init_db() -> None:
             WHERE yookassa_payment_id IS NOT NULL
         """)
         await conn.execute("""
+            ALTER TABLE payments ADD COLUMN IF NOT EXISTS robokassa_inv_id BIGINT
+        """)
+        await conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_robokassa_inv_id
+            ON payments (robokassa_inv_id)
+            WHERE robokassa_inv_id IS NOT NULL
+        """)
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS generations (
                 id BIGSERIAL PRIMARY KEY,
                 user_id BIGINT NOT NULL REFERENCES users(user_id),
@@ -193,6 +201,33 @@ async def get_admin_generations(limit: int = 50, offset: int = 0) -> list[dict]:
             LIMIT $1 OFFSET $2
         """, limit, offset)
         return [dict(r) for r in rows]
+
+
+async def create_robokassa_invoice(user_id: int, amount: float) -> int:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO payments (user_id, amount) VALUES ($1, $2) RETURNING id",
+            user_id, amount,
+        )
+        inv_id = row["id"]
+        await conn.execute(
+            "UPDATE payments SET robokassa_inv_id = $1 WHERE id = $1",
+            inv_id,
+        )
+        return inv_id
+
+
+async def confirm_robokassa_invoice(inv_id: int) -> tuple[int, float] | None:
+    """Атомарно помечает счёт как оплаченный. Возвращает (user_id, amount) или None если уже обработан."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """UPDATE payments
+               SET yookassa_payment_id = $1
+               WHERE robokassa_inv_id = $2 AND yookassa_payment_id IS NULL
+               RETURNING user_id, amount""",
+            f"robokassa:{inv_id}", inv_id,
+        )
+        return (row["user_id"], row["amount"]) if row else None
 
 
 async def get_admin_payments(limit: int = 50, offset: int = 0) -> list[dict]:

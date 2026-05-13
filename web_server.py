@@ -7,6 +7,7 @@ import logging
 import urllib.parse
 from functools import partial
 from pathlib import Path
+from urllib.parse import urlencode
 
 import asyncpg
 import yookassa
@@ -15,6 +16,10 @@ from aiohttp import web
 from config import (
     ADMIN_ID,
     BOT_TOKEN,
+    ROBOKASSA_MERCHANT_LOGIN,
+    ROBOKASSA_PASSWORD1,
+    ROBOKASSA_PASSWORD2,
+    ROBOKASSA_TEST_MODE,
     TOPUP_OPTIONS,
     WEB_SERVER_PORT,
     YOOKASSA_SECRET_KEY,
@@ -22,6 +27,8 @@ from config import (
 )
 from database import (
     add_balance,
+    confirm_robokassa_invoice,
+    create_robokassa_invoice,
     get_admin_generations,
     get_admin_payments,
     get_admin_stats,
@@ -145,9 +152,16 @@ async def handle_admin_payments(request: web.Request) -> web.Response:
     return web.json_response(_rows_to_json(rows))
 
 
-async def handle_pay_tg(request: web.Request) -> web.FileResponse:
+async def handle_oferta(request: web.Request) -> web.FileResponse:
     return web.FileResponse(
-        STATIC_DIR / "pay_tg.html",
+        STATIC_DIR / "oferta.html",
+        headers={"ngrok-skip-browser-warning": "true"},
+    )
+
+
+async def handle_pay_yookassa(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(
+        STATIC_DIR / "pay_yookassa.html",
         headers={"ngrok-skip-browser-warning": "true"},
     )
 
@@ -264,15 +278,113 @@ async def handle_webhook(request: web.Request) -> web.Response:
     return web.Response(status=200)
 
 
+def _robokassa_payment_url(out_sum: str, inv_id: int) -> str:
+    sig = hashlib.md5(
+        f"{ROBOKASSA_MERCHANT_LOGIN}:{out_sum}:{inv_id}:{ROBOKASSA_PASSWORD1}".encode()
+    ).hexdigest()
+    params = {
+        "MerchantLogin": ROBOKASSA_MERCHANT_LOGIN,
+        "OutSum": out_sum,
+        "InvId": inv_id,
+        "SignatureValue": sig,
+        "IsTest": 1 if ROBOKASSA_TEST_MODE else 0,
+    }
+    return f"https://auth.robokassa.ru/Merchant/Index.aspx?{urlencode(params)}"
+
+
+async def handle_pay_robokassa(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(
+        STATIC_DIR / "pay_robokassa.html",
+        headers={"ngrok-skip-browser-warning": "true"},
+    )
+
+
+async def handle_create_robokassa_payment(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    user_id = data.get("user_id")
+    amount = data.get("amount")
+
+    if not user_id or not amount:
+        return web.json_response({"error": "user_id and amount are required"}, status=400)
+
+    try:
+        user_id = int(user_id)
+        amount = int(amount)
+    except (ValueError, TypeError):
+        return web.json_response({"error": "Invalid user_id or amount"}, status=400)
+
+    if amount not in TOPUP_OPTIONS:
+        return web.json_response({"error": f"Invalid amount. Allowed: {TOPUP_OPTIONS}"}, status=400)
+
+    user = await get_user(user_id)
+    if user is None:
+        return web.json_response({"error": "User not found"}, status=404)
+
+    inv_id = await create_robokassa_invoice(user_id, float(amount))
+    out_sum = f"{amount:.2f}"
+    payment_url = _robokassa_payment_url(out_sum, inv_id)
+    return web.json_response({"payment_url": payment_url})
+
+
+async def handle_robokassa_result(request: web.Request) -> web.Response:
+    try:
+        post = await request.post()
+        out_sum = post["OutSum"]
+        inv_id = int(post["InvId"])
+        received_sig = post["SignatureValue"].lower()
+    except (KeyError, ValueError):
+        return web.Response(status=400, text="Bad request")
+
+    expected_sig = hashlib.md5(
+        f"{out_sum}:{inv_id}:{ROBOKASSA_PASSWORD2}".encode()
+    ).hexdigest().lower()
+
+    if expected_sig != received_sig:
+        logger.warning("Robokassa bad signature for InvId=%s", inv_id)
+        return web.Response(status=403, text="Bad sign")
+
+    result = await confirm_robokassa_invoice(inv_id)
+    if result is None:
+        # уже обработан или не найден
+        return web.Response(text=f"OK{inv_id}")
+
+    user_id, amount = result
+    await add_balance(user_id, amount)
+
+    bot = request.app["bot"]
+    user = await get_user(user_id)
+    new_balance = user["balance"] if user else amount
+    try:
+        await bot.send_message(
+            user_id,
+            f"✅ Оплата через Robokassa прошла успешно!\n\n"
+            f"Зачислено: <b>{amount:.0f}₽</b>\n"
+            f"Ваш баланс: <b>{new_balance:.0f}₽</b>",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.warning("Failed to notify user %s: %s", user_id, e)
+
+    return web.Response(text=f"OK{inv_id}")
+
+
 async def run_web_server(bot) -> None:
     yookassa.Configuration.account_id = YOOKASSA_SHOP_ID
     yookassa.Configuration.secret_key = YOOKASSA_SECRET_KEY
 
     app = web.Application()
     app["bot"] = bot
-    app.router.add_get("/pay_tg", handle_pay_tg)
+    app.router.add_get("/oferta", handle_oferta)
+    app.router.add_get("/pay_yookassa", handle_pay_yookassa)
     app.router.add_post("/api/payment/create", handle_create_payment)
     app.router.add_post("/yookassa/webhook", handle_webhook)
+    app.router.add_get("/pay_robokassa", handle_pay_robokassa)
+    app.router.add_post("/api/robokassa/create", handle_create_robokassa_payment)
+    app.router.add_post("/robokassa/result", handle_robokassa_result)
     app.router.add_get("/admin", handle_admin)
     app.router.add_get("/api/admin/stats", handle_admin_stats)
     app.router.add_get("/api/admin/generations", handle_admin_generations)

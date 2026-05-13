@@ -1,6 +1,7 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
+from config import WEBAPP_URL
 from database import get_or_create_user
 from keyboards.inline import main_menu_kb
 
@@ -26,7 +27,8 @@ async def cmd_start(message: Message) -> None:
         "по вашему описанию.\n\n"
         f"{free_text}\n"
         f"💰 Баланс: <b>{balance:.0f}₽</b>\n\n"
-        "Нажмите <b>«Сгенерировать»</b>, чтобы начать.",
+        "Нажмите <b>«Сгенерировать»</b>, чтобы начать.\n\n"
+        f"📄 <a href=\"{WEBAPP_URL}/oferta\">Публичная оферта</a>",
         reply_markup=main_menu_kb(user.id),
         parse_mode="HTML",
     )

@@ -29,8 +29,12 @@ def topup_amounts_kb() -> InlineKeyboardMarkup:
     rows.append([
         InlineKeyboardButton(
             text="🌐 Оплатить через сайт",
-            web_app=WebAppInfo(url=f"{WEBAPP_URL}/pay_tg"),
-        )
+            web_app=WebAppInfo(url=f"{WEBAPP_URL}/pay_yookassa"),
+        ),
+        InlineKeyboardButton(
+            text="💳 Robokassa",
+            web_app=WebAppInfo(url=f"{WEBAPP_URL}/pay_robokassa"),
+        ),
     ])
     rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

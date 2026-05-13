@@ -23,3 +23,8 @@ YOOKASSA_SHOP_ID: str = os.environ["YOOKASSA_SHOP_ID"]
 YOOKASSA_SECRET_KEY: str = os.environ["YOOKASSA_SECRET_KEY"]
 WEBAPP_URL: str = os.getenv("WEBAPP_URL", "https://imagetransformation.ru")
 WEB_SERVER_PORT: int = int(os.getenv("WEB_SERVER_PORT", "8080"))
+
+ROBOKASSA_MERCHANT_LOGIN: str = os.getenv("ROBOKASSA_MERCHANT_LOGIN", "")
+ROBOKASSA_PASSWORD1: str = os.getenv("ROBOKASSA_PASSWORD1", "")
+ROBOKASSA_PASSWORD2: str = os.getenv("ROBOKASSA_PASSWORD2", "")
+ROBOKASSA_TEST_MODE: bool = os.getenv("ROBOKASSA_TEST_MODE", "0") == "1"
